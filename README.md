@@ -273,20 +273,77 @@ Future developments include
 
 ---
 
-# Author
+# Authors
 
-**Muh. Akbar Idris**
+### Muh. Akbar Idris
+M.Sc. Student  
+School of Data Science, Mathematics and Informatics (SSMI)  
+IPB University, Bogor, Indonesia
 
-School of Data Science, Mathematics and Informatics
+- 📧 Email: muhakbaridris@apps.ipb.ac.id
+- 🌐 GitHub: https://github.com/muhakbaridris
+- 🎓 Scopus Author ID: **60611693800**
+- 🔗 Scopus Profile: https://www.scopus.com/authid/detail.uri?authorId=60611693800
 
+Research Interests
+
+- Spatial Statistics
+- Spatio-Temporal Statistics
+- Spatial Data Science
+- GeoAI
+- Spatial Machine Learning
+- Environmental Risk Assessment
+
+---
+
+### Prof. Dr. Muhammad Nur Aidi, M.S.
+Professor of Statistics  
+School of Data Science, Mathematics and Informatics (SSMI)  
+IPB University, Bogor, Indonesia
+
+- 🎓 Scopus Author ID: **55243253200**
+- 🔗 Scopus Profile: https://www.scopus.com/authid/detail.uri?authorId=55243253200
+
+Research Interests
+
+- Applied Statistics
+- Spatial Statistics
+- Statistical Modeling
+- Data Science
+
+---
+
+### Prof. Dr. Anik Djuraidah, M.S.
+Professor of Statistics  
+School of Data Science, Mathematics and Informatics (SSMI)  
+IPB University, Bogor, Indonesia
+
+- 🎓 Scopus Author ID: **56716188100**
+- 🔗 Scopus Profile: https://www.scopus.com/authid/detail.uri?authorId=56716188100
+
+Research Interests
+
+- Spatial Statistics
+- Spatio-Temporal Modelling
+- Statistical Downscaling
+- Spatial Machine Learning
+
+---
+
+## Project Team
+
+**Principal Developer**
+
+Muh. Akbar Idris  
 IPB University
 
-Indonesia
+**Scientific Advisors**
 
-Email:
+- Prof. Dr. Muhammad Nur Aidi, M.S.
+- Prof. Dr. Anik Djuraidah, M.S.
 
-muhakbaridris@apps.ipb.ac.id
+**Project**
 
-GitHub:
+ST-SCKM (Spatio-Temporal Spatially Constrained K-Means)
 
-https://github.com/muhakbaridris
+Developed at the School of Data Science, Mathematics and Informatics (SSMI), IPB University.
