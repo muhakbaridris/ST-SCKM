@@ -1,4 +1,3 @@
-````markdown
 # ST-SCKM: Spatio-Temporal Spatially Constrained K-Means
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -185,41 +184,40 @@ python examples/run_example.py
 
 ---
 
-# Mathematical Formulation
+## Mathematical Formulation
 
 For each observation
 
-\[
-x_i=(p_i,z_i)
-\]
+$$
+x_i = (p_i, z_i)
+$$
 
-ST-SCKM minimizes
+ST-SCKM minimizes the following objective function
 
-\[
-J=
-\sum_i
+$$
+J =
+\sum_{i=1}^{n}
 \left(
-w_s
-\|p_i-\mu_k^p\|^2
+w_s \|p_i-\mu_k^{(p)}\|^2
 +
-w_t
-\|z_i-\mu_k^z\|^2
+w_t \|z_i-\mu_k^{(z)}\|^2
 \right)
 +
 \lambda
-\sum_i
+\sum_{i=1}^{n}
 \sum_{j\in N(i)}
-I(c_i\neq c_j)
-\]
+\mathbf{1}(c_i \neq c_j)
+$$
 
 where
 
-- \(w_s\) = spatial weight
-- \(w_t\) = temporal weight
-- \(N(i)\) = spatial K-nearest-neighbor graph
-- \(\lambda\) = spatial contiguity penalty
+- $w_s$ : spatial weight
+- $w_t$ : temporal weight
+- $N(i)$ : K-nearest-neighbor graph
+- $\lambda$ : spatial contiguity penalty
+- $\mathbf{1}(\cdot)$ : indicator function
 
-The objective jointly promotes spatial compactness, temporal consistency, and geographically contiguous clusters.
+The first term minimizes spatial and temporal within-cluster variance, while the second term penalizes neighboring observations assigned to different clusters, producing spatially coherent clustering results.
 
 ---
 
@@ -292,4 +290,3 @@ muhakbaridris@apps.ipb.ac.id
 GitHub:
 
 https://github.com/muhakbaridris
-````
