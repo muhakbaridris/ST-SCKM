@@ -55,7 +55,7 @@ ST-SCKM/
 Clone the repository
 
 ```bash
-git clone https://github.com/USERNAME/ST-SCKM.git
+git clone https://github.com/muhakbaridris/ST-SCKM.git
 cd ST-SCKM
 ```
 
