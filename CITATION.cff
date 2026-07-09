@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+
+title: "ST-SCKM"
+
+message: "If you use this software, please cite the associated publication."
+
+type: software
+
+authors:
+  - family-names: Idris
+    given-names: Muh. Akbar
+    affiliation: IPB University
+
+  - family-names: Aidi
+    given-names: Muhammad Nur
+    affiliation: IPB University
+
+  - family-names: Anik
+    given-names: Djuraidah
+    affiliation: IPB University
+
+repository-code: https://github.com/muhakbaridris/ST-SCKM
+
+license: MIT
+
+version: 1.0.0
+
+date-released: 2026-07-09
+
+keywords:
+  - spatial clustering
+  - spatio-temporal clustering
+  - wildfire
+  - GeoAI
+  - spatial statistics
+  - machine learning
