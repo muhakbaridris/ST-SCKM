@@ -34,7 +34,7 @@ thereby producing spatially coherent and temporally consistent clusters suitable
 
 **Status:** Accepted for publication
 
-**DOI:** *To be updated after publication.*
+**DOI:** *(https://doi.org/10.1016/j.jnlssr.2026.100357)*
 
 ---
 
