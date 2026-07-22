@@ -252,7 +252,7 @@ If ST-SCKM contributes to your research, please cite both the software repositor
   journal={Journal of Safety Science and Resilience},
   year={2026},
   note={Accepted},
-  doi={To be updated}
+  doi={https://doi.org/10.1016/j.jnlssr.2026.100357}
 }
 ```
 
