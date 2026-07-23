@@ -1,4 +1,4 @@
-"""Distance helpers for spatio-temporal clustering."""
+"""Distance functions used by ST-SCKM."""
 
 from __future__ import annotations
 
@@ -13,23 +13,30 @@ def weighted_spatiotemporal_distance(
     spatial_weight: float = 1.0,
     temporal_weight: float = 1.0,
 ) -> np.ndarray:
-    """Return squared weighted distance from observations to centroids.
+    """Compute squared weighted distances to every cluster centroid.
 
     Parameters
     ----------
-    X_spatial:
+    X_spatial
         Spatial feature matrix with shape ``(n_samples, n_spatial_features)``.
-    X_temporal:
+    X_temporal
         Temporal feature matrix with shape ``(n_samples, n_temporal_features)``.
-    centroids_spatial:
+    centroids_spatial
         Spatial centroids with shape ``(n_clusters, n_spatial_features)``.
-    centroids_temporal:
+    centroids_temporal
         Temporal centroids with shape ``(n_clusters, n_temporal_features)``.
-    spatial_weight, temporal_weight:
-        Non-negative weights applied to squared spatial and temporal distances.
+    spatial_weight
+        Non-negative multiplier for squared spatial distances.
+    temporal_weight
+        Non-negative multiplier for squared temporal distances.
+
+    Returns
+    -------
+    numpy.ndarray
+        Distance matrix with shape ``(n_samples, n_clusters)``.
     """
     spatial_diff = X_spatial[:, None, :] - centroids_spatial[None, :, :]
     temporal_diff = X_temporal[:, None, :] - centroids_temporal[None, :, :]
-    spatial_dist = np.sum(spatial_diff * spatial_diff, axis=2)
-    temporal_dist = np.sum(temporal_diff * temporal_diff, axis=2)
-    return spatial_weight * spatial_dist + temporal_weight * temporal_dist
+    spatial_distance = np.einsum("nkd,nkd->nk", spatial_diff, spatial_diff)
+    temporal_distance = np.einsum("nkd,nkd->nk", temporal_diff, temporal_diff)
+    return spatial_weight * spatial_distance + temporal_weight * temporal_distance

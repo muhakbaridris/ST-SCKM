@@ -1,28 +1,22 @@
 cff-version: 1.2.0
-title: "ST-SCKM: Spatio-Temporal Spatially Constrained K-Means"
-message: "If you use this software, please cite the associated manuscript."
+title: "stsckm: Spatially Constrained Spatio-Temporal K-Means"
+message: "If you use this software, cite the software and associated article."
 type: software
 authors:
   - family-names: Idris
     given-names: Muh Akbar
-    affiliation: IPB University
-  - family-names: Aidi
-    given-names: Muhammad Nur
-    affiliation: IPB University
-  - family-names: Djuraidah
-    given-names: Anik
+    email: muhakbaridris@apps.ipb.ac.id
+    orcid: https://orcid.org/0009-0000-2995-1975
     affiliation: IPB University
 repository-code: "https://github.com/muhakbaridris/ST-SCKM"
 license: MIT
 version: 1.0.0
-date-released: 2026-07-09
+date-released: 2026-07-24
 keywords:
   - spatial clustering
   - spatio-temporal clustering
-  - wildfire
-  - GeoAI
-  - risk zoning
-  - machine learning
+  - graph penalty
+  - geospatial data
 preferred-citation:
   type: article
   title: "Performance Evaluation of ST-DBSCAN and Spatio-Temporal Spatially Constrained K-Means (ST-SCKM) for Wildfire Risk Zoning and Resilience Analysis"
@@ -35,3 +29,4 @@ preferred-citation:
       given-names: Anik
   journal: "Journal of Safety Science and Resilience"
   year: 2026
+  doi: 10.1016/j.jnlssr.2026.100357

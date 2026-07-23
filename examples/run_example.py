@@ -3,28 +3,27 @@
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from stsckm import (
+    STSCKM,
+    add_default_features,
+    assign_risk_labels,
+    evaluate_labels,
+    load_sample_wildfire,
+    standardize_features,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from src import STSCKM
-from src.clustering import assign_risk_labels, evaluate_labels
-from src.utils import add_default_features, standardize_features
-
-
-DATA_PATH = ROOT / "data" / "sample_data.csv"
 OUTPUT_DIR = ROOT / "examples" / "output"
 
 
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    df = pd.read_csv(DATA_PATH)
-    df = add_default_features(df)
+    df = add_default_features(load_sample_wildfire())
 
     X_spatial, _ = standardize_features(df, ["x_proj", "y_proj"])
     X_temporal, _ = standardize_features(df, ["time_days"])
