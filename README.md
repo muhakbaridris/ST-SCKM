@@ -22,20 +22,23 @@ without entering the clustering objective.
 
 ## Installation
 
-Install the source checkout:
+Install the published package from PyPI:
 
 ```bash
-python -m pip install .
+python -m pip install stsckm
 ```
 
-For development, testing, plotting, and documentation:
+Optional plotting support can be installed with:
+
+```bash
+python -m pip install "stsckm[plot]"
+```
+
+For development, testing, and documentation from a source checkout:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
-
-The package has not yet been released on PyPI. Do not use
-`pip install stsckm` until a release is published there.
 
 ## Quick start
 
@@ -88,7 +91,7 @@ print(metrics)
 - `load_sample_wildfire()`
 
 The estimator follows scikit-learn parameter conventions and inherits from
-`BaseEstimator` and `ClusterMixin`. Version 1.0.0 intentionally does not expose
+`BaseEstimator` and `ClusterMixin`. The current release intentionally does not expose
 out-of-sample `predict()`: defining neighbors for new points requires a
 separate modeling choice.
 

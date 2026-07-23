@@ -7,5 +7,4 @@ recursive-include src/stsckm/data *.csv
 recursive-include docs *.rst *.py
 recursive-include examples *.py
 recursive-include replication *.py *.csv *.md *.txt
-recursive-include .github *.yml *.yaml
 prune replication/output

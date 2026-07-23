@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-07-24
+
+- Updated installation documentation after publication on PyPI.
+- No statistical or API behavior changed from version 1.0.0.
+
 ## 1.0.0 - 2026-07-24
 
 - Added an installable `stsckm` package using a standard `src` layout.

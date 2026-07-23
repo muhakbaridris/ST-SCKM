@@ -1,16 +1,17 @@
 Installation
 ============
 
-Install from a source checkout:
+Install from PyPI:
 
 .. code-block:: console
 
-   $ python -m pip install .
+   $ python -m pip install stsckm
 
 Install optional plotting support:
 
 .. code-block:: console
 
-   $ python -m pip install ".[plot]"
+   $ python -m pip install "stsckm[plot]"
 
-The package has not yet been published on PyPI.
+For development from a source checkout, use
+``python -m pip install -e ".[dev]"``.

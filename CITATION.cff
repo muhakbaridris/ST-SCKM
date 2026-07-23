@@ -10,7 +10,7 @@ authors:
     affiliation: IPB University
 repository-code: "https://github.com/muhakbaridris/ST-SCKM"
 license: MIT
-version: 1.0.0
+version: 1.0.1
 date-released: 2026-07-24
 keywords:
   - spatial clustering
