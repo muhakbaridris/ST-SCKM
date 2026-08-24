@@ -201,6 +201,11 @@ benchmark without comparing wall times for exact equality. See
 [`replication/README.md`](replication/README.md) for the exact reviewer
 workflow and output map.
 
+For a single end-to-end script that prepares the bundled data, fits the model,
+writes diagnostics, screens a transparent parameter grid, and saves auditable
+outputs, run `python replication/worked_analysis.py` from the `replication`
+folder.
+
 ## Tests, documentation, and build
 
 ```bash

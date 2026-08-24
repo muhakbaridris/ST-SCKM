@@ -1,0 +1,4 @@
+method_1,method_2,adjusted_rand
+K-means,Connectivity-constrained Ward,0.37864750525822216
+K-means,ST-SCKM,0.6718773705388543
+Connectivity-constrained Ward,ST-SCKM,0.3794863768675562

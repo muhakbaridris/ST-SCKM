@@ -46,8 +46,11 @@ It performs the following tasks:
 8. writes fitted-state, centroid-cost, and parameter-grid tables;
 9. runs a small three-repeat scaling benchmark whose timings are recorded but
    not equality-checked;
-10. recreates all data-driven manuscript figures; and
-11. writes interpreter and dependency versions to `output/session_info.txt`.
+10. compares the three empirical partitions with pairwise adjusted Rand
+    indices;
+11. executes `worked_analysis.py`, the complete end-to-end manuscript example;
+12. recreates all data-driven manuscript figures; and
+13. writes interpreter and dependency versions to `output/session_info.txt`.
 
 The script checks platform-invariant numerical CSV files against the archived
 files in `expected/` and exits with an error if the values differ beyond the
@@ -65,13 +68,16 @@ python examples/run_example.py
 
 - `run_all.py`: single complete replication entry point.
 - `manuscript_examples.py`: exact executable counterparts of manuscript code.
+- `worked_analysis.py`: complete preparation, fit, diagnosis, screening, and
+  output workflow printed in the manuscript.
 - `examples/run_example.py`: independently runnable introductory example.
 - `requirements.txt`: exact package versions for the archived results.
 - `expected/`: archived numerical results used for verification.
 - `output/`: regenerated tables, figures, predictions, log, and session data.
 
 The principal output files are `parameter_search.csv`,
-`fitted_summary.csv`, `transform_example.csv`, `order_sensitivity.csv`,
+`fitted_summary.csv`, `transform_example.csv`, `method_agreement.csv`,
+`order_sensitivity.csv`,
 `scaling_benchmark.csv`, and the PDF and PNG figures. `run_all.log` prints all
 checked tables and the active environment.
 

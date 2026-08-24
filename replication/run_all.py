@@ -31,6 +31,7 @@ from session_info import session_information
 from sklearn.base import clone
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from sklearn.metrics import adjusted_rand_score
+from worked_analysis import run_workflow
 
 from stsckm import (
     RISK_LABELS,
@@ -129,6 +130,22 @@ def method_comparison(X_spatial, X_temporal):
             }
         )
     return pd.DataFrame.from_records(records), labels
+
+
+def method_agreement_table(labels):
+    """Compare partitions with a label-invariant pairwise index."""
+    methods = list(labels)
+    records = []
+    for left_index, left in enumerate(methods):
+        for right in methods[left_index + 1 :]:
+            records.append(
+                {
+                    "method_1": left,
+                    "method_2": right,
+                    "adjusted_rand": adjusted_rand_score(labels[left], labels[right]),
+                }
+            )
+    return pd.DataFrame.from_records(records)
 
 
 def graph_variant_table(X_spatial, X_temporal):
@@ -583,6 +600,9 @@ def run_complete_replication():
     tables = {
         "sensitivity": sensitivity_table(X_spatial, X_temporal),
         "method_comparison": method_comparison(X_spatial, X_temporal)[0],
+        "method_agreement": method_agreement_table(
+            method_comparison(X_spatial, X_temporal)[1]
+        ),
         "graph_variants": graph_variant_table(X_spatial, X_temporal),
         "stability": stability_table(X_spatial, X_temporal),
         "order_sensitivity": order_sensitivity_table(X_spatial, X_temporal),
@@ -600,6 +620,7 @@ def run_complete_replication():
     benchmark = scaling_benchmark(X_spatial, X_temporal)
     benchmark.to_csv(OUTPUT / "scaling_benchmark.csv", index=False)
     scaling_figure(benchmark)
+    run_workflow(OUTPUT / "worked_analysis")
 
     information = session_information()
     (OUTPUT / "session_info.txt").write_text(information, encoding="utf-8")
