@@ -1,22 +1,68 @@
-# Replication
+# Replication materials
 
-From an installed source checkout, run:
+This folder reproduces every numerical table, empirical comparison, and
+data-driven figure in the manuscript. All commands below are run **from this
+`replication` folder**, not from its parent directory.
+
+## Review installation
+
+The submission archive contains both this folder and the package source
+distribution. Create an isolated environment and install the exact submitted
+software archive first:
 
 ```bash
-python replication/run_all.py
+cd replication
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install --no-deps ../software/stsckm-2.0.0.tar.gz
+python -m pip install -r requirements.txt
 ```
 
-The script:
+On Windows, activate the environment with `.venv\Scripts\activate`. The
+`stsckm==2.0.0` line in `requirements.txt` is satisfied by the installed local
+archive. After publication, the same environment can be created directly from
+PyPI with `python -m pip install -r requirements.txt`.
 
-1. loads the bundled 1,200-row synthetic dataset;
-2. reproduces the five-value spatial-penalty analysis;
-3. checks the table against `expected/sensitivity.csv`;
-4. writes the reproduced CSV, a software-illustration figure, and a
-   coherence-separation figure to `output/`.
+## Complete replication
 
-The compact replication is designed to complete within a few minutes on a
-regular laptop.
+Run the commented standalone entry point:
 
-`environment.txt` records the environment used for the archived outputs.
-The numerical check uses tight floating-point tolerances, so a materially
-different dependency stack may produce small platform-dependent differences.
+```bash
+python run_all.py
+```
+
+It performs the following tasks:
+
+1. executes the code listings imported by the manuscript;
+2. executes `python examples/run_example.py` through the same public API;
+3. reproduces the spatial-penalty sensitivity table;
+4. compares ST-SCKM with unconstrained K-means and graph-constrained Ward
+   clustering on the bundled illustration;
+5. evaluates KNN, radius, and custom graph interfaces;
+6. assesses repeated-fit stability across five fixed random seeds;
+7. recreates all data-driven manuscript figures; and
+8. writes interpreter and dependency versions to `output/session_info.txt`.
+
+The script checks its numerical CSV files against the archived files in
+`expected/` and exits with an error if the values differ beyond the recorded
+floating-point tolerance. A complete run takes a few minutes on a regular
+laptop.
+
+The introductory example can also be run independently, from this folder:
+
+```bash
+python examples/run_example.py
+```
+
+## Folder contents
+
+- `run_all.py`: single complete replication entry point.
+- `manuscript_examples.py`: exact executable counterparts of manuscript code.
+- `examples/run_example.py`: independently runnable introductory example.
+- `requirements.txt`: exact package versions for the archived results.
+- `expected/`: archived numerical results used for verification.
+- `output/`: regenerated tables, figures, predictions, log, and session data.
+
+The bundled event data are synthetic and distributed inside the `stsckm`
+package. No network access or external data download is required.

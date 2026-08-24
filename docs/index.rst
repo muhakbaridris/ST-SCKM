@@ -9,6 +9,7 @@ point-event data.
 
    installation
    method
+   related_software
    usage
    api
    reproducibility

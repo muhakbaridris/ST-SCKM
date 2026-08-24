@@ -1,11 +1,16 @@
 Reproducibility
 ===============
 
-Run the single replication entry point:
+The submitted replication archive has its own pinned ``requirements.txt``.
+After installing the submitted source archive, change into ``replication`` and
+run the single entry point:
 
 .. code-block:: console
 
-   $ python replication/run_all.py
+   $ cd replication
+   $ python run_all.py
 
-It regenerates the sensitivity table and figures, then checks the numeric table
-against the archived expected output.
+It executes every manuscript listing, regenerates the sensitivity, software
+comparison, graph-interface, and stability tables, recreates every data-driven
+figure, records the active environment, and checks all numerical tables against
+the archived expected outputs. No network access is required.

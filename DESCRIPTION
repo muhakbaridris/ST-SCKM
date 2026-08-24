@@ -1,13 +1,12 @@
 Package: STSCKM
 Type: Project
-Title: Spatio-Temporal Spatially Constrained K-Means
-Version: 1.0.0
-Authors@R: c(
-    person("Muh Akbar", "Idris", role = c("aut", "cre")),
-    person("Muhammad Nur", "Aidi", role = "aut"),
-    person("Anik", "Djuraidah", role = "aut"))
-Description: Python reference implementation and reproducible examples for
-    spatio-temporal spatially constrained k-means. This DESCRIPTION file is
-    included for repository metadata; the implementation is Python-based.
+Title: Graph-Regularized Spatio-Temporal Clustering
+Version: 2.0.0
+Authors@R: person("Muh Akbar", "Idris", role = c("aut", "cre"),
+    comment = c(ORCID = "0009-0000-2995-1975"))
+Description: Extensible Python implementation of graph-regularized
+    spatio-temporal clustering, graph diagnostics, parameter search, and
+    reproducible examples. This DESCRIPTION file is included for journal
+    repository metadata; the implementation is Python-based.
 License: MIT
 Encoding: UTF-8

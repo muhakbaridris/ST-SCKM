@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+.coverage
 *.egg-info/
 build/
 dist/

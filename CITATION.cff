@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "stsckm: Spatially Constrained Spatio-Temporal K-Means"
+title: "stsckm: An Extensible Python Framework for Graph-Regularized Spatio-Temporal Clustering"
 message: "If you use this software, cite the software and associated article."
 type: software
 authors:
@@ -10,8 +10,8 @@ authors:
     affiliation: IPB University
 repository-code: "https://github.com/muhakbaridris/ST-SCKM"
 license: MIT
-version: 1.0.1
-date-released: 2026-07-24
+version: 2.0.0
+date-released: 2026-08-25
 keywords:
   - spatial clustering
   - spatio-temporal clustering

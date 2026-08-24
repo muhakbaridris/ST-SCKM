@@ -1,64 +1,52 @@
-"""ST-SCKM estimator."""
+"""Graph-regularized spatio-temporal K-means estimator."""
 
 from __future__ import annotations
 
 import numbers
+from typing import Literal
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClusterMixin
+from scipy import sparse
+from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.cluster import KMeans
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted
 
+from .diagnostics import graph_diagnostics
 from .distance import weighted_spatiotemporal_distance
-from .graph import knn_indices
+from .graph import adjacency_to_neighbors, spatial_graph, validate_adjacency
+
+UpdateScheme = Literal["sequential", "synchronous"]
 
 
-class STSCKM(ClusterMixin, BaseEstimator):
-    """Spatio-temporal spatially constrained K-means.
+class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
+    """Graph-regularized spatio-temporal K-means.
 
-    The estimator minimizes weighted spatial and temporal squared distances
-    with a soft disagreement penalty on a spatial K-nearest-neighbor graph.
-    Assignments are updated sequentially in input row order.
+    The estimator combines weighted spatial and temporal squared distances
+    with a soft disagreement penalty on a sparse neighborhood graph. A graph
+    can be constructed from K-nearest neighbors or a radius, or supplied by
+    the caller as a dense or sparse adjacency matrix.
 
     Parameters
     ----------
     n_clusters
         Number of clusters.
-    spatial_weight
-        Non-negative weight for squared spatial distance.
-    temporal_weight
-        Non-negative weight for squared temporal distance.
+    spatial_weight, temporal_weight
+        Non-negative weights applied to spatial and temporal squared distance.
     lambda_spatial
-        Non-negative penalty for each directed neighbor-label disagreement.
+        Non-negative graph disagreement penalty.
+    graph_type
+        Graph constructed when ``adjacency`` is not passed to :meth:`fit`.
     n_neighbors
-        Number of spatial neighbors used by the penalty.
-    max_iter
-        Maximum number of penalized assignment passes.
-    tol
-        Absolute stopping tolerance for changes in the recorded objective.
-    n_init
-        Number of K-means initializations.
-    random_state
-        Seed or random-state instance used for initialization and empty-cluster
-        handling.
-
-    Attributes
-    ----------
-    labels_ : numpy.ndarray of shape (n_samples,)
-        Final cluster labels.
-    neighbors_ : numpy.ndarray
-        Directed KNN indices.
-    cluster_centers_spatial_ : numpy.ndarray
-        Spatial centroids.
-    cluster_centers_temporal_ : numpy.ndarray
-        Temporal centroids.
-    objective_history_ : list of float
-        Penalized objective after each assignment pass.
-    objective_ : float
-        Final recorded penalized objective.
-    n_iter_ : int
-        Number of penalized assignment passes.
+        Number of neighbors for ``graph_type="knn"``.
+    radius
+        Positive threshold required by ``graph_type="radius"``.
+    graph_symmetrize
+        Keep directed edges, take their union, or retain mutual edges.
+    update_scheme
+        Sequential Gauss-Seidel-like updates or synchronous label updates.
+    max_iter, tol, n_init, random_state
+        Optimization and initialization controls.
     """
 
     def __init__(
@@ -72,6 +60,10 @@ class STSCKM(ClusterMixin, BaseEstimator):
         tol: float = 1e-4,
         n_init: int = 10,
         random_state: int | np.random.RandomState | None = 42,
+        graph_type: Literal["knn", "radius"] = "knn",
+        radius: float | None = None,
+        graph_symmetrize: Literal["none", "union", "mutual"] = "none",
+        update_scheme: UpdateScheme = "sequential",
     ) -> None:
         self.n_clusters = n_clusters
         self.spatial_weight = spatial_weight
@@ -82,31 +74,26 @@ class STSCKM(ClusterMixin, BaseEstimator):
         self.tol = tol
         self.n_init = n_init
         self.random_state = random_state
+        self.graph_type = graph_type
+        self.radius = radius
+        self.graph_symmetrize = graph_symmetrize
+        self.update_scheme = update_scheme
 
-    def fit(self, X_spatial: np.ndarray, X_temporal: np.ndarray) -> STSCKM:
-        """Fit ST-SCKM to aligned spatial and temporal matrices.
-
-        Parameters
-        ----------
-        X_spatial
-            Spatial feature matrix.
-        X_temporal
-            Temporal feature matrix.
-
-        Returns
-        -------
-        STSCKM
-            Fitted estimator.
-        """
+    def fit(
+        self,
+        X_spatial: np.ndarray,
+        X_temporal: np.ndarray,
+        *,
+        adjacency: np.ndarray | sparse.spmatrix | None = None,
+    ) -> STSCKM:
+        """Fit the estimator to aligned spatial and temporal matrices."""
         self._validate_parameters()
-        X_spatial = check_array(X_spatial, dtype=float, ensure_2d=True)
-        X_temporal = check_array(X_temporal, dtype=float, ensure_2d=True)
-        if len(X_spatial) != len(X_temporal):
-            raise ValueError("X_spatial and X_temporal must contain the same number of rows")
-        if self.n_clusters > len(X_spatial):
-            raise ValueError("n_clusters cannot exceed the number of observations")
-
+        X_spatial, X_temporal = self._validate_inputs(X_spatial, X_temporal)
         random_state = check_random_state(self.random_state)
+        graph = self._resolve_graph(X_spatial, adjacency)
+        regularization_graph = ((graph + graph.T) * 0.5).tocsr()
+        regularization_graph.eliminate_zeros()
+
         weighted = np.hstack(
             (
                 X_spatial * np.sqrt(self.spatial_weight),
@@ -120,7 +107,6 @@ class STSCKM(ClusterMixin, BaseEstimator):
             random_state=random_state,
         ).fit(weighted)
         labels = initializer.labels_.copy()
-        neighbors = knn_indices(X_spatial, self.n_neighbors)
 
         history: list[float] = []
         for _ in range(self.max_iter):
@@ -138,8 +124,30 @@ class STSCKM(ClusterMixin, BaseEstimator):
                 self.spatial_weight,
                 self.temporal_weight,
             )
-            new_labels = self._assign_with_penalty(distance_cost, labels, neighbors)
-            objective = self._objective(distance_cost, new_labels, neighbors)
+            new_labels = self._assign_with_penalty(
+                distance_cost,
+                labels,
+                regularization_graph,
+            )
+            new_spatial_centers, new_temporal_centers = self._compute_centroids(
+                X_spatial,
+                X_temporal,
+                new_labels,
+                random_state,
+            )
+            updated_distance_cost = weighted_spatiotemporal_distance(
+                X_spatial,
+                X_temporal,
+                new_spatial_centers,
+                new_temporal_centers,
+                self.spatial_weight,
+                self.temporal_weight,
+            )
+            objective = self._objective(
+                updated_distance_cost,
+                new_labels,
+                regularization_graph,
+            )
             history.append(objective)
 
             unchanged = np.array_equal(new_labels, labels)
@@ -149,7 +157,10 @@ class STSCKM(ClusterMixin, BaseEstimator):
                 break
 
         self.labels_ = labels
-        self.neighbors_ = neighbors
+        self.adjacency_ = graph
+        self.regularization_adjacency_ = regularization_graph
+        self.neighbor_indices_ = adjacency_to_neighbors(graph)
+        self.neighbors_ = self._dense_neighbors_if_regular(self.neighbor_indices_)
         (
             self.cluster_centers_spatial_,
             self.cluster_centers_temporal_,
@@ -159,16 +170,80 @@ class STSCKM(ClusterMixin, BaseEstimator):
         self.n_iter_ = len(history)
         self.n_spatial_features_in_ = X_spatial.shape[1]
         self.n_temporal_features_in_ = X_temporal.shape[1]
+        self.graph_type_ = "custom" if adjacency is not None else self.graph_type
+        self.graph_diagnostics_ = graph_diagnostics(labels, graph)
         return self
 
-    def fit_predict(self, X_spatial: np.ndarray, X_temporal: np.ndarray) -> np.ndarray:
+    def fit_predict(
+        self,
+        X_spatial: np.ndarray,
+        X_temporal: np.ndarray,
+        *,
+        adjacency: np.ndarray | sparse.spmatrix | None = None,
+    ) -> np.ndarray:
         """Fit the estimator and return final labels."""
-        return self.fit(X_spatial, X_temporal).labels_
+        return self.fit(X_spatial, X_temporal, adjacency=adjacency).labels_
+
+    def transform(self, X_spatial: np.ndarray, X_temporal: np.ndarray) -> np.ndarray:
+        """Return weighted distances to the fitted cluster centroids.
+
+        Graph penalties are not included because a graph for new observations
+        is not defined by the fitted object.
+        """
+        check_is_fitted(self, "cluster_centers_spatial_")
+        X_spatial = check_array(X_spatial, dtype=float, ensure_2d=True)
+        X_temporal = check_array(X_temporal, dtype=float, ensure_2d=True)
+        if len(X_spatial) != len(X_temporal):
+            raise ValueError("X_spatial and X_temporal must contain the same number of rows")
+        if X_spatial.shape[1] != self.n_spatial_features_in_:
+            raise ValueError("X_spatial has a different number of features from the fitted data")
+        if X_temporal.shape[1] != self.n_temporal_features_in_:
+            raise ValueError("X_temporal has a different number of features from the fitted data")
+        return weighted_spatiotemporal_distance(
+            X_spatial,
+            X_temporal,
+            self.cluster_centers_spatial_,
+            self.cluster_centers_temporal_,
+            self.spatial_weight,
+            self.temporal_weight,
+        )
 
     def get_objective_history(self) -> np.ndarray:
         """Return a copy of the recorded objective history."""
         check_is_fitted(self, "objective_history_")
         return np.asarray(self.objective_history_, dtype=float).copy()
+
+    def _validate_inputs(
+        self,
+        X_spatial: np.ndarray,
+        X_temporal: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        X_spatial = check_array(X_spatial, dtype=float, ensure_2d=True)
+        X_temporal = check_array(X_temporal, dtype=float, ensure_2d=True)
+        if len(X_spatial) != len(X_temporal):
+            raise ValueError("X_spatial and X_temporal must contain the same number of rows")
+        if self.n_clusters > len(X_spatial):
+            raise ValueError("n_clusters cannot exceed the number of observations")
+        return X_spatial, X_temporal
+
+    def _resolve_graph(
+        self,
+        X_spatial: np.ndarray,
+        adjacency: np.ndarray | sparse.spmatrix | None,
+    ) -> sparse.csr_matrix:
+        if adjacency is not None:
+            return validate_adjacency(
+                adjacency,
+                n_samples=len(X_spatial),
+                symmetrize=self.graph_symmetrize,
+            )
+        return spatial_graph(
+            X_spatial,
+            graph_type=self.graph_type,
+            n_neighbors=self.n_neighbors,
+            radius=self.radius,
+            symmetrize=self.graph_symmetrize,
+        )
 
     def _validate_parameters(self) -> None:
         integer_parameters = {
@@ -192,6 +267,18 @@ class STSCKM(ClusterMixin, BaseEstimator):
                 raise ValueError(f"{name} must be a finite non-negative number")
         if self.spatial_weight == 0 and self.temporal_weight == 0:
             raise ValueError("spatial_weight and temporal_weight cannot both be zero")
+        if self.graph_type not in {"knn", "radius"}:
+            raise ValueError("graph_type must be 'knn' or 'radius'")
+        if self.graph_symmetrize not in {"none", "union", "mutual"}:
+            raise ValueError("graph_symmetrize must be 'none', 'union', or 'mutual'")
+        if self.update_scheme not in {"sequential", "synchronous"}:
+            raise ValueError("update_scheme must be 'sequential' or 'synchronous'")
+        if self.graph_type == "radius" and (
+            not isinstance(self.radius, numbers.Real)
+            or not np.isfinite(self.radius)
+            or self.radius <= 0
+        ):
+            raise ValueError("radius must be a finite positive number for a radius graph")
 
     def _compute_centroids(
         self,
@@ -217,17 +304,21 @@ class STSCKM(ClusterMixin, BaseEstimator):
         self,
         distance_cost: np.ndarray,
         labels: np.ndarray,
-        neighbors: np.ndarray,
+        graph: sparse.csr_matrix,
     ) -> np.ndarray:
         new_labels = labels.copy()
-        for i in range(distance_cost.shape[0]):
-            neighbor_labels = new_labels[neighbors[i]]
-            penalty = np.array(
-                [np.count_nonzero(neighbor_labels != k) for k in range(self.n_clusters)],
+        reference = labels if self.update_scheme == "synchronous" else new_labels
+        for index in range(distance_cost.shape[0]):
+            start, stop = graph.indptr[index], graph.indptr[index + 1]
+            neighbors = graph.indices[start:stop]
+            weights = graph.data[start:stop]
+            neighbor_labels = reference[neighbors]
+            penalty = np.asarray(
+                [weights[neighbor_labels != cluster].sum() for cluster in range(self.n_clusters)],
                 dtype=float,
             )
-            new_labels[i] = int(
-                np.argmin(distance_cost[i] + self.lambda_spatial * penalty)
+            new_labels[index] = int(
+                np.argmin(distance_cost[index] + self.lambda_spatial * penalty)
             )
         return new_labels
 
@@ -235,8 +326,16 @@ class STSCKM(ClusterMixin, BaseEstimator):
         self,
         distance_cost: np.ndarray,
         labels: np.ndarray,
-        neighbors: np.ndarray,
+        graph: sparse.csr_matrix,
     ) -> float:
         within = float(distance_cost[np.arange(len(labels)), labels].sum())
-        disagreement = np.count_nonzero(labels[:, None] != labels[neighbors])
-        return within + self.lambda_spatial * float(disagreement)
+        rows, columns = graph.nonzero()
+        disagreement = float(graph.data[labels[rows] != labels[columns]].sum())
+        return within + 0.5 * self.lambda_spatial * disagreement
+
+    @staticmethod
+    def _dense_neighbors_if_regular(rows: list[np.ndarray]) -> np.ndarray | None:
+        lengths = {len(row) for row in rows}
+        if len(lengths) == 1 and rows:
+            return np.vstack(rows).astype(int, copy=False)
+        return None

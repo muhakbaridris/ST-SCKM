@@ -9,6 +9,7 @@ from stsckm import (
     add_default_features,
     assign_risk_labels,
     evaluate_labels,
+    graph_diagnostics,
     load_sample_wildfire,
     standardize_features,
 )
@@ -26,6 +27,7 @@ def main() -> None:
         temporal_weight=1.5,
         lambda_spatial=1.0,
         n_neighbors=5,
+        graph_symmetrize="union",
         random_state=42,
     )
     frame["cluster"] = model.fit_predict(spatial, temporal)
@@ -35,6 +37,7 @@ def main() -> None:
     print(f"iterations={model.n_iter_}")
     print(f"objective={model.objective_:.10f}")
     print(metrics)
+    print(graph_diagnostics(model.labels_, model.adjacency_))
     print(frame["risk_zone"].value_counts().sort_index())
 
 

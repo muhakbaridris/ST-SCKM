@@ -12,6 +12,7 @@ from stsckm import (
     add_default_features,
     assign_risk_labels,
     evaluate_labels,
+    graph_diagnostics,
     load_sample_wildfire,
     standardize_features,
 )
@@ -34,6 +35,7 @@ def main() -> None:
         temporal_weight=1.5,
         lambda_spatial=1.0,
         n_neighbors=5,
+        graph_symmetrize="union",
         n_init=10,
         random_state=42,
     )
@@ -48,6 +50,7 @@ def main() -> None:
         axis=1,
     ).to_numpy()
     metrics = evaluate_labels(X_eval, df["cluster"].to_numpy())
+    graph_metrics = graph_diagnostics(model.labels_, model.adjacency_)
 
     result_path = OUTPUT_DIR / "sample_predictions.csv"
     df.to_csv(result_path, index=False)
@@ -78,6 +81,7 @@ def main() -> None:
     print("ST-SCKM example complete")
     print(f"Iterations: {model.n_iter_}")
     print(f"Metrics: {metrics}")
+    print(f"Graph diagnostics: {graph_metrics}")
     print(f"Predictions: {result_path}")
 
 

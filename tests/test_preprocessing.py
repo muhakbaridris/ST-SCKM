@@ -39,3 +39,13 @@ def test_generator_is_reproducible():
 def test_missing_columns_raise_clear_error():
     with pytest.raises(KeyError, match="missing required"):
         add_default_features(pd.DataFrame({"longitude": [1.0]}))
+
+
+def test_generator_and_standardization_validate_inputs():
+    with pytest.raises(ValueError, match="positive"):
+        generate_sample_wildfire_data(0)
+    frame = add_default_features(load_sample_wildfire().head(3))
+    with pytest.raises(ValueError, match="columns"):
+        standardize_features(frame, [])
+    with pytest.raises(KeyError, match="missing requested"):
+        standardize_features(frame, ["unknown"])
