@@ -131,7 +131,9 @@ custom_model = STSCKM(n_clusters=4, random_state=42).fit(
 ```
 
 Non-negative edge weights in a custom graph enter the disagreement penalty.
-Diagonal entries are removed during validation.
+Diagonal entries are removed during validation. A complete asymmetric
+six-observation example is available in
+[`examples/custom_weighted_graph.py`](examples/custom_weighted_graph.py).
 
 ## Parameter selection and stability
 
@@ -193,9 +195,11 @@ python run_all.py
 
 `run_all.py` executes the manuscript listings, runs the independently callable
 `examples/run_example.py`, recreates all numerical tables and data-driven
-figures, records dependency versions, and checks results against the archived
-CSVs in `expected/`. See [`replication/README.md`](replication/README.md) for
-the exact reviewer workflow.
+figures, records dependency versions, and checks platform-invariant results
+against the archived CSVs in `expected/`. It also regenerates a small scaling
+benchmark without comparing wall times for exact equality. See
+[`replication/README.md`](replication/README.md) for the exact reviewer
+workflow and output map.
 
 ## Tests, documentation, and build
 

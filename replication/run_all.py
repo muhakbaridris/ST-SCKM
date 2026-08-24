@@ -12,19 +12,25 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from pathlib import Path
+from time import perf_counter
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from manuscript_examples import (
+    custom_weighted_example,
     evaluate_example,
     fit_example,
+    fitted_summary_example,
     graph_examples,
     prepare_example,
+    transform_example,
     tuning_example,
 )
 from session_info import session_information
+from sklearn.base import clone
 from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.metrics import adjusted_rand_score
 
 from stsckm import (
     RISK_LABELS,
@@ -181,6 +187,87 @@ def stability_table(X_spatial, X_temporal):
     return table
 
 
+def order_sensitivity_table(X_spatial, X_temporal):
+    """Compare row permutations for sequential and synchronous updates."""
+    rng = np.random.default_rng(2026)
+    selected = np.sort(rng.choice(len(X_spatial), size=400, replace=False))
+    spatial = X_spatial[selected]
+    temporal = X_temporal[selected]
+    records = []
+    for scheme in ("sequential", "synchronous"):
+        estimator = STSCKM(
+            n_clusters=4,
+            spatial_weight=0.5,
+            temporal_weight=1.5,
+            lambda_spatial=1.0,
+            graph_symmetrize="union",
+            update_scheme=scheme,
+            n_init=10,
+            random_state=42,
+        )
+        reference = clone(estimator).fit(spatial, temporal)
+        reference_labels = reference.labels_.copy()
+        reference_graph = reference.adjacency_.copy()
+        for permutation_id in range(1, 5):
+            permutation = np.random.default_rng(100 + permutation_id).permutation(400)
+            fitted = clone(estimator).fit(spatial[permutation], temporal[permutation])
+            restored = np.empty(400, dtype=int)
+            restored[permutation] = fitted.labels_
+            diagnostics = graph_diagnostics(restored, reference_graph)
+            records.append(
+                {
+                    "update_scheme": scheme,
+                    "permutation": permutation_id,
+                    "adjusted_rand_to_reference": adjusted_rand_score(
+                        reference_labels, restored
+                    ),
+                    "neighbor_agreement": diagnostics["neighbor_agreement"],
+                    "n_components_total": diagnostics["n_components_total"],
+                }
+            )
+    return pd.DataFrame.from_records(records)
+
+
+def scaling_benchmark(X_spatial, X_temporal):
+    """Record illustrative wall times and sparse graph sizes."""
+    records = []
+    for n_samples in (200, 400, 800, 1200):
+        indices = np.linspace(0, len(X_spatial) - 1, n_samples, dtype=int)
+        spatial = X_spatial[indices]
+        temporal = X_temporal[indices]
+        timings = []
+        fitted = None
+        for _ in range(3):
+            start = perf_counter()
+            fitted = STSCKM(
+                n_clusters=4,
+                spatial_weight=0.5,
+                temporal_weight=1.5,
+                lambda_spatial=1.0,
+                n_neighbors=5,
+                graph_symmetrize="union",
+                n_init=1,
+                max_iter=10,
+                random_state=42,
+            ).fit(spatial, temporal)
+            timings.append(perf_counter() - start)
+        records.append(
+            {
+                "n_samples": n_samples,
+                "directed_edges": fitted.adjacency_.nnz,
+                "graph_megabytes": (
+                    fitted.adjacency_.data.nbytes
+                    + fitted.adjacency_.indices.nbytes
+                    + fitted.adjacency_.indptr.nbytes
+                )
+                / 1_000_000,
+                "median_seconds": float(np.median(timings)),
+                "n_iter": fitted.n_iter_,
+            }
+        )
+    return pd.DataFrame.from_records(records)
+
+
 def software_figure(events, X_spatial, X_temporal):
     """Create the input, fitted partition, and post hoc profile panels."""
     model = fit_model(X_spatial, X_temporal, 1.0)
@@ -320,6 +407,136 @@ def sensitivity_figure(result):
     plt.close(figure)
 
 
+def tuning_figure(result):
+    """Plot two diagnostics over the K and graph-penalty grid."""
+    penalties = sorted(result["lambda_spatial"].unique())
+    clusters = sorted(result["n_clusters"].unique())
+    figure, axes = plt.subplots(1, 2, figsize=(9.4, 3.45), constrained_layout=True)
+    for axis, metric, title in (
+        (axes[0], "silhouette", "(a) Feature-space silhouette"),
+        (axes[1], "neighbor_agreement", "(b) Neighbor agreement"),
+    ):
+        matrix = (
+            result.pivot(index="n_clusters", columns="lambda_spatial", values=metric)
+            .loc[clusters, penalties]
+            .to_numpy()
+        )
+        image = axis.imshow(matrix, cmap="viridis", aspect="auto", vmin=0, vmax=1)
+        axis.set_xticks(range(len(penalties)), [str(value) for value in penalties])
+        axis.set_yticks(range(len(clusters)), [str(value) for value in clusters])
+        axis.set(xlabel="Graph penalty", ylabel="Number of clusters", title=title)
+        for row in range(len(clusters)):
+            for column in range(len(penalties)):
+                color = "white" if matrix[row, column] < 0.55 else "black"
+                axis.text(
+                    column,
+                    row,
+                    f"{matrix[row, column]:.3f}",
+                    ha="center",
+                    va="center",
+                    color=color,
+                    fontsize=8,
+                )
+        figure.colorbar(image, ax=axis, fraction=0.046, pad=0.04)
+    figure.savefig(OUTPUT / "tuning_heatmap.pdf", bbox_inches="tight")
+    figure.savefig(OUTPUT / "tuning_heatmap.png", dpi=300, bbox_inches="tight")
+    plt.close(figure)
+
+
+def custom_graph_figure():
+    """Visualize supplied and regularization graphs for the worked example."""
+    spatial, _, adjacency, model = custom_weighted_example()
+    regularization = model.regularization_adjacency_.toarray()
+    figure, axes = plt.subplots(1, 3, figsize=(10.8, 3.2), constrained_layout=True)
+
+    def draw_graph(axis, matrix, directed):
+        for i, j in zip(*np.nonzero(matrix), strict=True):
+            if not directed and j <= i:
+                continue
+            start, end = spatial[i], spatial[j]
+            if directed:
+                axis.annotate(
+                    "",
+                    xy=end,
+                    xytext=start,
+                    arrowprops={"arrowstyle": "->", "color": "#7A7F87", "lw": 1.2},
+                )
+            else:
+                axis.plot([start[0], end[0]], [start[1], end[1]], color="#7A7F87", lw=1.2)
+            midpoint = (start + end) / 2
+            axis.text(
+                midpoint[0],
+                midpoint[1] + 0.035,
+                f"{matrix[i, j]:.2g}",
+                fontsize=7,
+                ha="center",
+            )
+        axis.scatter(
+            spatial[:, 0],
+            spatial[:, 1],
+            s=52,
+            color="#2C7BB6",
+            edgecolor="white",
+            zorder=3,
+        )
+        for index, point in enumerate(spatial):
+            axis.text(point[0], point[1] - 0.07, str(index), ha="center", fontsize=8)
+        axis.set(xlim=(-0.15, 2.35), ylim=(-0.12, 0.22), yticks=[])
+        axis.grid(alpha=0.2)
+
+    draw_graph(axes[0], adjacency, True)
+    axes[0].set_title("(a) Supplied directed weights")
+    draw_graph(axes[1], regularization, False)
+    axes[1].set_title("(b) Symmetric penalty weights")
+    axes[2].scatter(
+        spatial[:, 0], spatial[:, 1], c=model.labels_, cmap="tab10", s=72, edgecolor="white"
+    )
+    for index, point in enumerate(spatial):
+        axes[2].text(point[0], point[1] - 0.07, str(index), ha="center", fontsize=8)
+    axes[2].set(xlim=(-0.15, 2.35), ylim=(-0.12, 0.22), yticks=[])
+    axes[2].grid(alpha=0.2)
+    axes[2].set_title("(c) Fitted labels")
+    for axis in axes:
+        axis.set_xlabel("Spatial coordinate 1")
+    figure.savefig(OUTPUT / "custom_weighted_graph.pdf", bbox_inches="tight")
+    figure.savefig(OUTPUT / "custom_weighted_graph.png", dpi=300, bbox_inches="tight")
+    plt.close(figure)
+
+
+def scaling_figure(result):
+    """Plot illustrative fit time and sparse graph memory."""
+    figure, axes = plt.subplots(1, 2, figsize=(9.2, 3.5), constrained_layout=True)
+    axes[0].plot(
+        result["n_samples"],
+        result["median_seconds"],
+        marker="o",
+        color="#38598B",
+        linewidth=2,
+    )
+    axes[0].set(
+        xlabel="Number of observations",
+        ylabel="Median fit time (seconds)",
+        title="(a) End-to-end fit time",
+    )
+    axes[1].plot(
+        result["n_samples"],
+        result["graph_megabytes"],
+        marker="s",
+        color="#2A9D8F",
+        linewidth=2,
+    )
+    axes[1].set(
+        xlabel="Number of observations",
+        ylabel="CSR graph storage (MB)",
+        title="(b) Stored adjacency",
+    )
+    for axis in axes:
+        axis.grid(alpha=0.25)
+    figure.savefig(OUTPUT / "scaling_benchmark.pdf", bbox_inches="tight")
+    figure.savefig(OUTPUT / "scaling_benchmark.png", dpi=300, bbox_inches="tight")
+    plt.close(figure)
+
+
 def check_expected(name, result, *, tolerance=1e-8):
     """Fail if a regenerated table differs materially from its archive."""
     expected_path = EXPECTED / f"{name}.csv"
@@ -355,15 +572,20 @@ def run_complete_replication():
     )
     radius_model, custom_model = graph_examples(X_spatial, X_temporal)
     tuning = tuning_example(X_spatial, X_temporal)
+    fitted_summary = fitted_summary_example(events, model)
+    transformed = transform_example(X_spatial, X_temporal, model)
     profiled.to_csv(OUTPUT / "example_predictions.csv", index=False)
     connectivity.to_csv(OUTPUT / "example_connectivity.csv", index=False)
     tuning.to_csv(OUTPUT / "parameter_search.csv", index=False)
+    fitted_summary.to_csv(OUTPUT / "fitted_summary.csv", index=False)
+    transformed.to_csv(OUTPUT / "transform_example.csv", index=False)
 
     tables = {
         "sensitivity": sensitivity_table(X_spatial, X_temporal),
         "method_comparison": method_comparison(X_spatial, X_temporal)[0],
         "graph_variants": graph_variant_table(X_spatial, X_temporal),
         "stability": stability_table(X_spatial, X_temporal),
+        "order_sensitivity": order_sensitivity_table(X_spatial, X_temporal),
     }
     for name, table in tables.items():
         check_expected(name, table)
@@ -373,6 +595,11 @@ def run_complete_replication():
     software_figure(events, X_spatial, X_temporal)
     comparison_figure(events, comparison_labels)
     sensitivity_figure(tables["sensitivity"])
+    tuning_figure(tuning)
+    custom_graph_figure()
+    benchmark = scaling_benchmark(X_spatial, X_temporal)
+    benchmark.to_csv(OUTPUT / "scaling_benchmark.csv", index=False)
+    scaling_figure(benchmark)
 
     information = session_information()
     (OUTPUT / "session_info.txt").write_text(information, encoding="utf-8")

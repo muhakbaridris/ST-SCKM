@@ -7,6 +7,7 @@ and the submitted replication code cannot silently diverge.
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 from stsckm import (
     STSCKM,
@@ -103,6 +104,65 @@ def tuning_example(X_spatial, X_temporal):
     )
 
 
+def fitted_summary_example(events, model):
+    """Summarize cluster size, centroids, connectivity, and post hoc profile."""
+    connectivity = cluster_connectivity(model.labels_, model.adjacency_)
+    profiled = events.assign(cluster=model.labels_)
+    profiled["risk_zone"] = assign_risk_labels(
+        profiled, label_column="cluster", intensity_column="log_frp"
+    )
+    profiles = (
+        profiled.groupby("cluster", sort=True)
+        .agg(mean_log_intensity=("log_frp", "mean"), profile=("risk_zone", "first"))
+        .reset_index()
+    )
+    centers = pd.DataFrame(
+        {
+            "cluster": np.arange(model.n_clusters),
+            "spatial_center_1": model.cluster_centers_spatial_[:, 0],
+            "spatial_center_2": model.cluster_centers_spatial_[:, 1],
+            "temporal_center": model.cluster_centers_temporal_[:, 0],
+        }
+    )
+    return centers.merge(connectivity, on="cluster").merge(profiles, on="cluster")
+
+
+def transform_example(X_spatial, X_temporal, model):
+    """Inspect centroid costs for the first five observations."""
+    costs = model.transform(X_spatial[:5], X_temporal[:5])
+    result = pd.DataFrame(costs, columns=[f"cost_cluster_{k}" for k in range(model.n_clusters)])
+    result.insert(0, "fitted_label", model.labels_[:5])
+    result.insert(0, "observation", np.arange(5))
+    result["nearest_centroid"] = costs.argmin(axis=1)
+    return result
+
+
+def custom_weighted_example():
+    """Fit a small example with an asymmetric caller-supplied weighted graph."""
+    X_spatial = np.array(
+        [[0.0, 0.0], [0.2, 0.1], [0.4, 0.0], [1.8, 0.0], [2.0, 0.1], [2.2, 0.0]]
+    )
+    X_temporal = np.array([[0.0], [0.1], [0.2], [0.8], [0.9], [1.0]])
+    adjacency = np.zeros((6, 6), dtype=float)
+    adjacency[0, 1] = 2.0
+    adjacency[1, 0] = 1.0
+    adjacency[1, 2] = 3.0
+    adjacency[2, 3] = 0.25
+    adjacency[3, 4] = 3.0
+    adjacency[4, 3] = 1.0
+    adjacency[4, 5] = 2.0
+    model = STSCKM(
+        n_clusters=2,
+        spatial_weight=1.0,
+        temporal_weight=1.0,
+        lambda_spatial=0.75,
+        graph_symmetrize="none",
+        n_init=10,
+        random_state=42,
+    ).fit(X_spatial, X_temporal, adjacency=adjacency)
+    return X_spatial, X_temporal, adjacency, model
+
+
 def main():
     """Run every manuscript listing as one smoke test."""
     events, X_spatial, X_temporal, _, _ = prepare_example()
@@ -112,6 +172,9 @@ def main():
     )
     radius_model, custom_model = graph_examples(X_spatial, X_temporal)
     tuning = tuning_example(X_spatial, X_temporal)
+    fitted_summary = fitted_summary_example(events, model)
+    transformed = transform_example(X_spatial, X_temporal, model)
+    _, _, _, weighted_model = custom_weighted_example()
 
     print("Internal metrics:", internal)
     print("Graph diagnostics:", graph)
@@ -119,6 +182,9 @@ def main():
     print("Radius graph diagnostics:", radius_model.graph_diagnostics_)
     print("Custom graph diagnostics:", custom_model.graph_diagnostics_)
     print(tuning.to_string(index=False))
+    print(fitted_summary.to_string(index=False))
+    print(transformed.to_string(index=False))
+    print("Custom weighted labels:", weighted_model.labels_)
 
 
 if __name__ == "__main__":

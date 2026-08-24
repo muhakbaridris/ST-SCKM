@@ -41,13 +41,19 @@ It performs the following tasks:
    clustering on the bundled illustration;
 5. evaluates KNN, radius, and custom graph interfaces;
 6. assesses repeated-fit stability across five fixed random seeds;
-7. recreates all data-driven manuscript figures; and
-8. writes interpreter and dependency versions to `output/session_info.txt`.
+7. checks sequential and synchronous updates under four fixed row
+   permutations;
+8. writes fitted-state, centroid-cost, and parameter-grid tables;
+9. runs a small three-repeat scaling benchmark whose timings are recorded but
+   not equality-checked;
+10. recreates all data-driven manuscript figures; and
+11. writes interpreter and dependency versions to `output/session_info.txt`.
 
-The script checks its numerical CSV files against the archived files in
-`expected/` and exits with an error if the values differ beyond the recorded
-floating-point tolerance. A complete run takes a few minutes on a regular
-laptop.
+The script checks platform-invariant numerical CSV files against the archived
+files in `expected/` and exits with an error if the values differ beyond the
+recorded floating-point tolerance. Wall time is regenerated but is not checked
+for equality because it depends on the review computer. A complete run takes
+less than a few minutes on a regular laptop.
 
 The introductory example can also be run independently, from this folder:
 
@@ -63,6 +69,11 @@ python examples/run_example.py
 - `requirements.txt`: exact package versions for the archived results.
 - `expected/`: archived numerical results used for verification.
 - `output/`: regenerated tables, figures, predictions, log, and session data.
+
+The principal output files are `parameter_search.csv`,
+`fitted_summary.csv`, `transform_example.csv`, `order_sensitivity.csv`,
+`scaling_benchmark.csv`, and the PDF and PNG figures. `run_all.log` prints all
+checked tables and the active environment.
 
 The bundled event data are synthetic and distributed inside the `stsckm`
 package. No network access or external data download is required.
