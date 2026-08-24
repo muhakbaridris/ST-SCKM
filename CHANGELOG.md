@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0 - Unreleased
+## 2.0.0 - 2026-08-25
 
 - Generalized the neighborhood layer to sparse KNN, radius, and caller-supplied
   weighted adjacency graphs with explicit directed, union, and mutual modes.
@@ -15,6 +15,8 @@
   requirements, archived checks, and session information.
 - Added empirical comparison with unconstrained K-means and
   connectivity-constrained Ward clustering.
+- Added an end-to-end worked analysis, pairwise partition-agreement results,
+  row-order sensitivity checks, and a reproducible scaling benchmark.
 
 ## 1.0.1 - 2026-07-24
 
