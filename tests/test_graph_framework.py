@@ -2,7 +2,12 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from stsckm import adjacency_to_neighbors, spatial_graph, validate_adjacency
+from stsckm import (
+    adjacency_to_neighbors,
+    combine_adjacencies,
+    spatial_graph,
+    validate_adjacency,
+)
 
 
 @pytest.fixture
@@ -68,3 +73,36 @@ def test_validation_rejects_invalid_shape_or_values(adjacency):
 def test_spatial_graph_rejects_unknown_type(coordinates):
     with pytest.raises(ValueError, match="graph_type"):
         spatial_graph(coordinates, graph_type="unknown")
+
+
+def test_combine_adjacencies_retains_layer_weights():
+    first = np.array([[0.0, 1.0], [0.0, 0.0]])
+    second = np.array([[0.0, 0.0], [2.0, 0.0]])
+    combined = combine_adjacencies([first, second], weights=[2.0, 0.5])
+    np.testing.assert_allclose(combined.toarray(), [[0.0, 2.0], [1.0, 0.0]])
+
+
+def test_combine_adjacencies_normalizes_and_symmetrizes():
+    first = np.array([[0.0, 4.0], [0.0, 0.0]])
+    second = np.array([[0.0, 0.0], [2.0, 0.0]])
+    combined = combine_adjacencies(
+        [first, second],
+        normalize="max",
+        symmetrize="union",
+    )
+    np.testing.assert_allclose(combined.toarray(), np.ones((2, 2)) - np.eye(2))
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"adjacencies": []},
+        {"adjacencies": [np.eye(2), np.eye(3)]},
+        {"adjacencies": [np.eye(2)], "weights": [1.0, 2.0]},
+        {"adjacencies": [np.eye(2)], "weights": [-1.0]},
+        {"adjacencies": [np.eye(2)], "normalize": "bad"},
+    ],
+)
+def test_combine_adjacencies_rejects_invalid_inputs(arguments):
+    with pytest.raises(ValueError):
+        combine_adjacencies(**arguments)

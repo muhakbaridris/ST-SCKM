@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numbers
+from collections.abc import Sequence
 from typing import Literal
 
 import numpy as np
@@ -12,6 +13,7 @@ from sklearn.utils.validation import check_array
 
 GraphType = Literal["knn", "radius"]
 SymmetrizeMode = Literal["none", "union", "mutual"]
+NormalizeMode = Literal["none", "max", "sum"]
 
 
 def validate_adjacency(
@@ -98,6 +100,64 @@ def adjacency_to_neighbors(adjacency: np.ndarray | sparse.spmatrix) -> list[np.n
         graph.indices[graph.indptr[index] : graph.indptr[index + 1]].copy()
         for index in range(graph.shape[0])
     ]
+
+
+def combine_adjacencies(
+    adjacencies: Sequence[np.ndarray | sparse.spmatrix],
+    *,
+    weights: Sequence[float] | None = None,
+    normalize: NormalizeMode = "none",
+    symmetrize: SymmetrizeMode = "none",
+) -> sparse.csr_matrix:
+    """Combine multiple graph layers into one weighted sparse adjacency.
+
+    Parameters
+    ----------
+    adjacencies
+        Non-empty sequence of square adjacency matrices with identical shape.
+    weights
+        Optional non-negative multiplier for each graph layer.
+    normalize
+        Normalize each layer by its maximum edge weight, total edge weight, or
+        not at all before applying ``weights``.
+    symmetrize
+        Optional symmetrization applied after the layers are combined.
+
+    Notes
+    -----
+    Layer normalization changes the interpretation of the graph penalty. The
+    returned matrix records the exact combined weights used by the estimator.
+    """
+    if not adjacencies:
+        raise ValueError("adjacencies cannot be empty")
+    if normalize not in {"none", "max", "sum"}:
+        raise ValueError("normalize must be 'none', 'max', or 'sum'")
+    if weights is None:
+        layer_weights = np.ones(len(adjacencies), dtype=float)
+    else:
+        layer_weights = np.asarray(weights, dtype=float)
+        if layer_weights.ndim != 1 or len(layer_weights) != len(adjacencies):
+            raise ValueError("weights must have one entry per adjacency layer")
+        if not np.all(np.isfinite(layer_weights)) or np.any(layer_weights < 0):
+            raise ValueError("weights must be finite and non-negative")
+        if not np.any(layer_weights > 0):
+            raise ValueError("at least one layer weight must be positive")
+
+    layers = [validate_adjacency(adjacency) for adjacency in adjacencies]
+    shape = layers[0].shape
+    if any(layer.shape != shape for layer in layers[1:]):
+        raise ValueError("all adjacency layers must have the same shape")
+
+    combined = sparse.csr_matrix(shape, dtype=float)
+    for layer, layer_weight in zip(layers, layer_weights, strict=True):
+        scale = 1.0
+        if layer.data.size and normalize == "max":
+            scale = float(layer.data.max())
+        elif layer.data.size and normalize == "sum":
+            scale = float(layer.data.sum())
+        combined = combined + layer * (float(layer_weight) / scale)
+
+    return validate_adjacency(combined, symmetrize=symmetrize)
 
 
 def knn_indices(X_spatial: np.ndarray, n_neighbors: int = 5) -> np.ndarray:

@@ -1,7 +1,7 @@
 project = "stsckm"
 author = "Muh Akbar Idris"
 copyright = "2026, Muh Akbar Idris"
-release = "2.0.0"
+release = "2.1.0"
 
 extensions = [
     "sphinx.ext.autodoc",

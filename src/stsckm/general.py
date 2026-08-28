@@ -1,4 +1,4 @@
-"""Graph-regularized spatio-temporal K-means estimator."""
+"""General-purpose graph-regularized K-means estimator."""
 
 from __future__ import annotations
 
@@ -11,48 +11,52 @@ from sklearn.base import BaseEstimator, ClusterMixin, TransformerMixin
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from ._optimization import UpdateScheme, optimize_graph_regularized_kmeans
+from ._optimization import (
+    UpdateScheme,
+    optimize_graph_regularized_kmeans,
+    weighted_feature_distance,
+)
 from .diagnostics import graph_diagnostics
-from .distance import weighted_spatiotemporal_distance
 from .graph import adjacency_to_neighbors, spatial_graph, validate_adjacency
 
 
-class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
-    """Graph-regularized spatio-temporal K-means.
+class GraphRegularizedKMeans(ClusterMixin, TransformerMixin, BaseEstimator):
+    """Cluster a feature matrix with a soft graph-disagreement penalty.
 
-    The estimator combines weighted spatial and temporal squared distances
-    with a soft disagreement penalty on a sparse neighborhood graph. A graph
-    can be constructed from K-nearest neighbors or a radius, or supplied by
-    the caller as a dense or sparse adjacency matrix.
+    This estimator is the domain-general counterpart of :class:`STSCKM`.
+    Centroid fit is computed from ``X`` while graph construction may use a
+    separate representation passed as ``graph_features``. A custom dense or
+    sparse adjacency matrix can be supplied instead.
 
     Parameters
     ----------
     n_clusters
         Number of clusters.
-    spatial_weight, temporal_weight
-        Non-negative weights applied to spatial and temporal squared distance.
-    lambda_spatial
-        Non-negative graph disagreement penalty.
+    graph_penalty
+        Non-negative multiplier for weighted neighbor-label disagreement.
+    feature_weights
+        Optional non-negative weight for each column of ``X``. A scalar is
+        broadcast to all columns. By default every column has weight one.
     graph_type
-        Graph constructed when ``adjacency`` is not passed to :meth:`fit`.
-    n_neighbors
-        Number of neighbors for ``graph_type="knn"``.
-    radius
-        Positive threshold required by ``graph_type="radius"``.
-    graph_symmetrize
-        Keep directed edges, take their union, or retain mutual edges.
+        K-nearest-neighbor or radius graph when ``adjacency`` is not supplied.
+    n_neighbors, radius, graph_symmetrize
+        Controls for the automatically constructed graph.
     update_scheme
-        Sequential Gauss-Seidel-like updates or synchronous label updates.
+        Sequential or synchronous label updates.
     max_iter, tol, n_init, random_state
         Optimization and initialization controls.
+
+    Notes
+    -----
+    :meth:`predict` assigns observations by centroid distance alone because a
+    graph connecting new observations to the fitted sample is not defined.
     """
 
     def __init__(
         self,
         n_clusters: int = 4,
-        spatial_weight: float = 0.5,
-        temporal_weight: float = 1.5,
-        lambda_spatial: float = 1.0,
+        graph_penalty: float = 1.0,
+        feature_weights: float | tuple[float, ...] | list[float] | None = None,
         n_neighbors: int = 5,
         max_iter: int = 100,
         tol: float = 1e-4,
@@ -64,9 +68,8 @@ class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
         update_scheme: UpdateScheme = "sequential",
     ) -> None:
         self.n_clusters = n_clusters
-        self.spatial_weight = spatial_weight
-        self.temporal_weight = temporal_weight
-        self.lambda_spatial = lambda_spatial
+        self.graph_penalty = graph_penalty
+        self.feature_weights = feature_weights
         self.n_neighbors = n_neighbors
         self.max_iter = max_iter
         self.tol = tol
@@ -79,28 +82,31 @@ class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
 
     def fit(
         self,
-        X_spatial: np.ndarray,
-        X_temporal: np.ndarray,
+        X: np.ndarray,
+        y: np.ndarray | None = None,
         *,
         adjacency: np.ndarray | sparse.spmatrix | None = None,
-    ) -> STSCKM:
-        """Fit the estimator to aligned spatial and temporal matrices."""
+        graph_features: np.ndarray | None = None,
+    ) -> GraphRegularizedKMeans:
+        """Fit the estimator.
+
+        ``y`` is accepted and ignored for compatibility with scikit-learn
+        pipelines.
+        """
+        del y
         self._validate_parameters()
-        X_spatial, X_temporal = self._validate_inputs(X_spatial, X_temporal)
-        graph = self._resolve_graph(X_spatial, adjacency)
-        combined = np.hstack([X_spatial, X_temporal])
-        feature_weights = np.concatenate(
-            [
-                np.full(X_spatial.shape[1], self.spatial_weight, dtype=float),
-                np.full(X_temporal.shape[1], self.temporal_weight, dtype=float),
-            ]
-        )
+        original_columns = getattr(X, "columns", None)
+        X = check_array(X, dtype=float, ensure_2d=True)
+        if self.n_clusters > len(X):
+            raise ValueError("n_clusters cannot exceed the number of observations")
+        feature_weights = self._resolve_feature_weights(X.shape[1])
+        graph = self._resolve_graph(X, adjacency, graph_features)
         result = optimize_graph_regularized_kmeans(
-            combined,
+            X,
             feature_weights=feature_weights,
             adjacency=graph,
             n_clusters=int(self.n_clusters),
-            graph_penalty=float(self.lambda_spatial),
+            graph_penalty=float(self.graph_penalty),
             max_iter=int(self.max_iter),
             tol=float(self.tol),
             n_init=int(self.n_init),
@@ -108,88 +114,94 @@ class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
             update_scheme=self.update_scheme,
         )
 
-        split = X_spatial.shape[1]
         self.labels_ = result.labels
+        self.cluster_centers_ = result.centers
+        self.feature_weights_ = feature_weights
         self.adjacency_ = graph
         self.regularization_adjacency_ = result.regularization_adjacency
         self.neighbor_indices_ = adjacency_to_neighbors(graph)
         self.neighbors_ = self._dense_neighbors_if_regular(self.neighbor_indices_)
-        self.cluster_centers_spatial_ = result.centers[:, :split]
-        self.cluster_centers_temporal_ = result.centers[:, split:]
         self.objective_history_ = list(result.objective_history)
         self.objective_ = self.objective_history_[-1]
         self.n_iter_ = len(self.objective_history_)
-        self.n_spatial_features_in_ = X_spatial.shape[1]
-        self.n_temporal_features_in_ = X_temporal.shape[1]
+        self.n_features_in_ = X.shape[1]
+        if original_columns is not None and all(isinstance(name, str) for name in original_columns):
+            self.feature_names_in_ = np.asarray(original_columns, dtype=object)
         self.graph_type_ = "custom" if adjacency is not None else self.graph_type
         self.graph_diagnostics_ = graph_diagnostics(self.labels_, graph)
         return self
 
     def fit_predict(
         self,
-        X_spatial: np.ndarray,
-        X_temporal: np.ndarray,
+        X: np.ndarray,
+        y: np.ndarray | None = None,
         *,
         adjacency: np.ndarray | sparse.spmatrix | None = None,
+        graph_features: np.ndarray | None = None,
     ) -> np.ndarray:
         """Fit the estimator and return final labels."""
-        return self.fit(X_spatial, X_temporal, adjacency=adjacency).labels_
+        return self.fit(
+            X,
+            y,
+            adjacency=adjacency,
+            graph_features=graph_features,
+        ).labels_
 
-    def transform(self, X_spatial: np.ndarray, X_temporal: np.ndarray) -> np.ndarray:
-        """Return weighted distances to the fitted cluster centroids.
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Return weighted squared distances to fitted centroids."""
+        check_is_fitted(self, "cluster_centers_")
+        X = check_array(X, dtype=float, ensure_2d=True)
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError("X has a different number of features from the fitted data")
+        return weighted_feature_distance(X, self.cluster_centers_, self.feature_weights_)
 
-        Graph penalties are not included because a graph for new observations
-        is not defined by the fitted object.
-        """
-        check_is_fitted(self, "cluster_centers_spatial_")
-        X_spatial = check_array(X_spatial, dtype=float, ensure_2d=True)
-        X_temporal = check_array(X_temporal, dtype=float, ensure_2d=True)
-        if len(X_spatial) != len(X_temporal):
-            raise ValueError("X_spatial and X_temporal must contain the same number of rows")
-        if X_spatial.shape[1] != self.n_spatial_features_in_:
-            raise ValueError("X_spatial has a different number of features from the fitted data")
-        if X_temporal.shape[1] != self.n_temporal_features_in_:
-            raise ValueError("X_temporal has a different number of features from the fitted data")
-        return weighted_spatiotemporal_distance(
-            X_spatial,
-            X_temporal,
-            self.cluster_centers_spatial_,
-            self.cluster_centers_temporal_,
-            self.spatial_weight,
-            self.temporal_weight,
-        )
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Assign observations to their nearest centroid without graph costs."""
+        return np.argmin(self.transform(X), axis=1)
 
     def get_objective_history(self) -> np.ndarray:
         """Return a copy of the recorded objective history."""
         check_is_fitted(self, "objective_history_")
         return np.asarray(self.objective_history_, dtype=float).copy()
 
-    def _validate_inputs(
-        self,
-        X_spatial: np.ndarray,
-        X_temporal: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        X_spatial = check_array(X_spatial, dtype=float, ensure_2d=True)
-        X_temporal = check_array(X_temporal, dtype=float, ensure_2d=True)
-        if len(X_spatial) != len(X_temporal):
-            raise ValueError("X_spatial and X_temporal must contain the same number of rows")
-        if self.n_clusters > len(X_spatial):
-            raise ValueError("n_clusters cannot exceed the number of observations")
-        return X_spatial, X_temporal
+    def _resolve_feature_weights(self, n_features: int) -> np.ndarray:
+        if self.feature_weights is None:
+            weights = np.ones(n_features, dtype=float)
+        elif isinstance(self.feature_weights, numbers.Real):
+            weights = np.full(n_features, float(self.feature_weights), dtype=float)
+        else:
+            weights = np.asarray(self.feature_weights, dtype=float)
+            if weights.ndim != 1 or len(weights) != n_features:
+                raise ValueError("feature_weights must have one entry per feature")
+        if not np.all(np.isfinite(weights)) or np.any(weights < 0):
+            raise ValueError("feature_weights must be finite and non-negative")
+        if not np.any(weights > 0):
+            raise ValueError("at least one feature weight must be positive")
+        return weights
 
     def _resolve_graph(
         self,
-        X_spatial: np.ndarray,
+        X: np.ndarray,
         adjacency: np.ndarray | sparse.spmatrix | None,
+        graph_features: np.ndarray | None,
     ) -> sparse.csr_matrix:
+        if adjacency is not None and graph_features is not None:
+            raise ValueError("pass adjacency or graph_features, not both")
         if adjacency is not None:
             return validate_adjacency(
                 adjacency,
-                n_samples=len(X_spatial),
+                n_samples=len(X),
                 symmetrize=self.graph_symmetrize,
             )
+        graph_input = X if graph_features is None else check_array(
+            graph_features,
+            dtype=float,
+            ensure_2d=True,
+        )
+        if len(graph_input) != len(X):
+            raise ValueError("graph_features and X must contain the same number of rows")
         return spatial_graph(
-            X_spatial,
+            graph_input,
             graph_type=self.graph_type,
             n_neighbors=self.n_neighbors,
             radius=self.radius,
@@ -206,18 +218,9 @@ class STSCKM(ClusterMixin, TransformerMixin, BaseEstimator):
         for name, (value, minimum) in integer_parameters.items():
             if not isinstance(value, numbers.Integral) or value < minimum:
                 raise ValueError(f"{name} must be an integer greater than or equal to {minimum}")
-
-        numeric_parameters = {
-            "spatial_weight": self.spatial_weight,
-            "temporal_weight": self.temporal_weight,
-            "lambda_spatial": self.lambda_spatial,
-            "tol": self.tol,
-        }
-        for name, value in numeric_parameters.items():
+        for name, value in {"graph_penalty": self.graph_penalty, "tol": self.tol}.items():
             if not isinstance(value, numbers.Real) or not np.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be a finite non-negative number")
-        if self.spatial_weight == 0 and self.temporal_weight == 0:
-            raise ValueError("spatial_weight and temporal_weight cannot both be zero")
         if self.graph_type not in {"knn", "radius"}:
             raise ValueError("graph_type must be 'knn' or 'radius'")
         if self.graph_symmetrize not in {"none", "union", "mutual"}:

@@ -1,0 +1,57 @@
+name: Continuous integration
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Python ${{ matrix.python-version }} tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package and test dependencies
+        run: python -m pip install --upgrade pip ".[test,plot]"
+
+      - name: Run test suite
+        run: python -m pytest
+
+  quality:
+    name: Lint, documentation, and distributions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install development dependencies
+        run: python -m pip install --upgrade pip ".[dev]"
+
+      - name: Run Ruff
+        run: ruff check src tests examples replication
+
+      - name: Build documentation
+        run: sphinx-build -W -b html docs docs/_build/html
+
+      - name: Build and check distributions
+        run: |
+          python -m build
+          python -m twine check dist/*

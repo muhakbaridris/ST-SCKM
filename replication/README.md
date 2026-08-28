@@ -15,12 +15,12 @@ cd replication
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install --no-deps ../software/stsckm-2.0.0.tar.gz
+python -m pip install --no-deps ../software/stsckm-2.1.0.tar.gz
 python -m pip install -r requirements.txt
 ```
 
 On Windows, activate the environment with `.venv\Scripts\activate`. The
-`stsckm==2.0.0` line in `requirements.txt` is satisfied by the installed local
+`stsckm==2.1.0` line in `requirements.txt` is satisfied by the installed local
 archive. After publication, the same environment can be created directly from
 PyPI with `python -m pip install -r requirements.txt`.
 
@@ -39,18 +39,20 @@ It performs the following tasks:
 3. reproduces the spatial-penalty sensitivity table;
 4. compares ST-SCKM with unconstrained K-means and graph-constrained Ward
    clustering on the bundled illustration;
-5. evaluates KNN, radius, and custom graph interfaces;
-6. assesses repeated-fit stability across five fixed random seeds;
-7. checks sequential and synchronous updates under four fixed row
+5. applies the general graph-regularized estimator to an archived USGS
+   earthquake catalog and compares it with K-means and graph-constrained Ward;
+6. evaluates KNN, radius, custom, and layered graph interfaces;
+7. assesses repeated-fit stability across five fixed random seeds;
+8. checks sequential and synchronous updates under four fixed row
    permutations;
-8. writes fitted-state, centroid-cost, and parameter-grid tables;
-9. runs a small three-repeat scaling benchmark whose timings are recorded but
+9. writes fitted-state, centroid-cost, and parameter-grid tables;
+10. runs a small three-repeat scaling benchmark whose timings are recorded but
    not equality-checked;
-10. compares the three empirical partitions with pairwise adjusted Rand
+11. compares the three empirical partitions with pairwise adjusted Rand
     indices;
-11. executes `worked_analysis.py`, the complete end-to-end manuscript example;
-12. recreates all data-driven manuscript figures; and
-13. writes interpreter and dependency versions to `output/session_info.txt`.
+12. executes `worked_analysis.py`, the complete end-to-end manuscript example;
+13. recreates all data-driven manuscript figures; and
+14. writes interpreter and dependency versions to `output/session_info.txt`.
 
 The script checks platform-invariant numerical CSV files against the archived
 files in `expected/` and exits with an error if the values differ beyond the
@@ -77,9 +79,12 @@ python examples/run_example.py
 
 The principal output files are `parameter_search.csv`,
 `fitted_summary.csv`, `transform_example.csv`, `method_agreement.csv`,
-`order_sensitivity.csv`,
+`order_sensitivity.csv`, `earthquake_comparison.csv`,
 `scaling_benchmark.csv`, and the PDF and PNG figures. `run_all.log` prints all
 checked tables and the active environment.
 
-The bundled event data are synthetic and distributed inside the `stsckm`
-package. No network access or external data download is required.
+The wildfire illustration is synthetic. The second illustration is an archived
+924-event response from the USGS Earthquake Catalog API, with its fixed query,
+retrieval date, and SHA-256 digest recorded in `data/README.md`. Both datasets
+are distributed inside the `stsckm` package, so replication does not require
+network access.

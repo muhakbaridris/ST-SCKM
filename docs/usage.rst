@@ -1,7 +1,27 @@
 Usage
 =====
 
-The main estimator accepts spatial and temporal matrices separately:
+The domain-general estimator accepts one centroid-feature matrix and can build
+its graph from a different representation:
+
+.. code-block:: python
+
+   from stsckm import GraphRegularizedKMeans
+
+   model = GraphRegularizedKMeans(
+       n_clusters=4,
+       graph_penalty=1.0,
+       feature_weights=[1.0, 1.0, 0.5],
+       n_neighbors=6,
+       graph_symmetrize="union",
+       random_state=42,
+   ).fit(X, graph_features=graph_features)
+
+``predict(X_new)`` uses weighted centroid distances only. It does not invent a
+graph connecting new observations to the fitted sample.
+
+The spatio-temporal specialization accepts spatial and temporal matrices
+separately:
 
 .. code-block:: python
 
@@ -66,6 +86,32 @@ With ``graph_symmetrize="none"``, the original asymmetric matrix remains in
 ``regularization_adjacency_``. Multiplying all edge weights by a positive
 constant has the same objective-scale effect as multiplying
 ``lambda_spatial`` by that constant.
+
+Layered graph
+-------------
+
+.. code-block:: python
+
+   from stsckm import combine_adjacencies
+
+   adjacency = combine_adjacencies(
+       [spatial_layer, temporal_layer],
+       weights=[0.8, 0.2],
+       normalize="max",
+       symmetrize="union",
+   )
+
+Layer weights and normalization determine the relative contribution of each
+relationship type. Store or export the returned adjacency matrix when an exact
+analysis must be reproduced.
+
+Cross-domain illustration
+-------------------------
+
+``python examples/earthquake_catalog.py`` runs a second complete example on an
+archived USGS earthquake catalog. The example uses magnitude, depth, and event
+time as centroid features and combines geographic and temporal graph layers.
+It is a software illustration, not a seismic-hazard model.
 
 Spatial and temporal matrices should be scaled deliberately. Geographic
 coordinates should be projected with a coordinate reference system suitable

@@ -7,6 +7,41 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 
+def add_point_event_features(
+    frame: pd.DataFrame,
+    *,
+    longitude_column: str = "longitude",
+    latitude_column: str = "latitude",
+    time_column: str = "datetime",
+    intensity_column: str | None = None,
+) -> pd.DataFrame:
+    """Create a common representation for point-based event records.
+
+    The lightweight equirectangular coordinates are suitable for software
+    illustrations over a restricted region. Scientific analyses should use an
+    appropriate projected coordinate reference system.
+    """
+    required = {longitude_column, latitude_column, time_column}
+    if intensity_column is not None:
+        required.add(intensity_column)
+    missing = required.difference(frame.columns)
+    if missing:
+        raise KeyError(f"missing required columns: {sorted(missing)}")
+
+    result = frame.copy()
+    result["event_time"] = pd.to_datetime(result[time_column], utc=True)
+    elapsed = result["event_time"] - result["event_time"].min()
+    result["time_days"] = elapsed.dt.total_seconds() / 86400.0
+    latitude = result[latitude_column].to_numpy(dtype=float)
+    longitude = result[longitude_column].to_numpy(dtype=float)
+    reference_latitude = float(np.mean(latitude))
+    result["x_proj"] = longitude * 111320.0 * np.cos(np.deg2rad(reference_latitude))
+    result["y_proj"] = latitude * 110540.0
+    if intensity_column is not None:
+        result["event_intensity"] = result[intensity_column].astype(float)
+    return result
+
+
 def generate_sample_wildfire_data(
     n_samples: int = 1000,
     random_state: int | None = 42,

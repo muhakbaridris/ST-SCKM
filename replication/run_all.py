@@ -22,6 +22,7 @@ from manuscript_examples import (
     evaluate_example,
     fit_example,
     fitted_summary_example,
+    general_earthquake_example,
     graph_examples,
     prepare_example,
     transform_example,
@@ -36,11 +37,16 @@ from worked_analysis import run_workflow
 from stsckm import (
     RISK_LABELS,
     STSCKM,
+    GraphRegularizedKMeans,
+    add_point_event_features,
     assign_risk_labels,
+    combine_adjacencies,
     evaluate_labels,
     fit_stability,
     graph_diagnostics,
+    load_sample_earthquakes,
     spatial_graph,
+    standardize_features,
 )
 
 plt.switch_backend("Agg")
@@ -146,6 +152,60 @@ def method_agreement_table(labels):
                 }
             )
     return pd.DataFrame.from_records(records)
+
+
+def earthquake_comparison():
+    """Compare three formulations on a non-wildfire event catalog."""
+    events = add_point_event_features(
+        load_sample_earthquakes(),
+        time_column="time",
+        intensity_column="mag",
+    )
+    spatial, _ = standardize_features(events, ["x_proj", "y_proj"])
+    temporal, _ = standardize_features(events, ["time_days"])
+    features, _ = standardize_features(events, ["mag", "depth", "time_days"])
+    feature_weights = np.array([1.0, 0.5, 0.5])
+    weighted_features = features * np.sqrt(feature_weights)
+
+    spatial_layer = spatial_graph(spatial, n_neighbors=6, symmetrize="union")
+    temporal_layer = spatial_graph(temporal, n_neighbors=2, symmetrize="union")
+    adjacency = combine_adjacencies(
+        [spatial_layer, temporal_layer],
+        weights=[0.8, 0.2],
+        normalize="max",
+        symmetrize="union",
+    )
+
+    labels = {
+        "K-means": KMeans(n_clusters=5, n_init=10, random_state=42).fit_predict(
+            weighted_features
+        ),
+        "Connectivity-constrained Ward": AgglomerativeClustering(
+            n_clusters=5,
+            linkage="ward",
+            connectivity=adjacency,
+        ).fit_predict(weighted_features),
+        "Graph-regularized K-means": GraphRegularizedKMeans(
+            n_clusters=5,
+            graph_penalty=0.75,
+            feature_weights=feature_weights.tolist(),
+            graph_symmetrize="union",
+            random_state=42,
+        ).fit_predict(features, adjacency=adjacency),
+    }
+
+    records = []
+    for method, partition in labels.items():
+        records.append(
+            {
+                "method": method,
+                "n_clusters": len(np.unique(partition)),
+                **evaluate_labels(weighted_features, partition),
+                **graph_diagnostics(partition, adjacency),
+            }
+        )
+    table = pd.DataFrame.from_records(records)
+    return events, table, labels
 
 
 def graph_variant_table(X_spatial, X_temporal):
@@ -366,6 +426,36 @@ def comparison_figure(events, labels):
     figure.tight_layout()
     figure.savefig(OUTPUT / "method_comparison.pdf", bbox_inches="tight")
     figure.savefig(OUTPUT / "method_comparison.png", dpi=300, bbox_inches="tight")
+    plt.close(figure)
+
+
+def earthquake_figure(events, labels):
+    """Plot the non-wildfire comparison under a shared event catalog."""
+    methods = list(labels)
+    figure, axes = plt.subplots(
+        1,
+        len(methods),
+        figsize=(12.6, 3.8),
+        constrained_layout=True,
+        sharex=True,
+        sharey=True,
+    )
+    for axis, method in zip(axes, methods, strict=True):
+        axis.scatter(
+            events["longitude"],
+            events["latitude"],
+            c=labels[method],
+            cmap="tab10",
+            s=10,
+            alpha=0.75,
+            linewidths=0,
+        )
+        axis.set_title(method, fontsize=9)
+        axis.set_xlabel("Longitude")
+        axis.grid(alpha=0.2)
+    axes[0].set_ylabel("Latitude")
+    figure.savefig(OUTPUT / "earthquake_comparison.pdf", bbox_inches="tight")
+    figure.savefig(OUTPUT / "earthquake_comparison.png", dpi=300, bbox_inches="tight")
     plt.close(figure)
 
 
@@ -591,12 +681,14 @@ def run_complete_replication():
     tuning = tuning_example(X_spatial, X_temporal)
     fitted_summary = fitted_summary_example(events, model)
     transformed = transform_example(X_spatial, X_temporal, model)
+    general_earthquake_example()
     profiled.to_csv(OUTPUT / "example_predictions.csv", index=False)
     connectivity.to_csv(OUTPUT / "example_connectivity.csv", index=False)
     tuning.to_csv(OUTPUT / "parameter_search.csv", index=False)
     fitted_summary.to_csv(OUTPUT / "fitted_summary.csv", index=False)
     transformed.to_csv(OUTPUT / "transform_example.csv", index=False)
 
+    earthquake_events, earthquake_table, earthquake_labels = earthquake_comparison()
     tables = {
         "sensitivity": sensitivity_table(X_spatial, X_temporal),
         "method_comparison": method_comparison(X_spatial, X_temporal)[0],
@@ -606,6 +698,7 @@ def run_complete_replication():
         "graph_variants": graph_variant_table(X_spatial, X_temporal),
         "stability": stability_table(X_spatial, X_temporal),
         "order_sensitivity": order_sensitivity_table(X_spatial, X_temporal),
+        "earthquake_comparison": earthquake_table,
     }
     for name, table in tables.items():
         check_expected(name, table)
@@ -614,6 +707,7 @@ def run_complete_replication():
     _, comparison_labels = method_comparison(X_spatial, X_temporal)
     software_figure(events, X_spatial, X_temporal)
     comparison_figure(events, comparison_labels)
+    earthquake_figure(earthquake_events, earthquake_labels)
     sensitivity_figure(tables["sensitivity"])
     tuning_figure(tuning)
     custom_graph_figure()

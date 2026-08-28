@@ -4,6 +4,7 @@ include CITATION.cff
 include CHANGELOG.md
 include CONTRIBUTING.md
 include DESCRIPTION
+include data/README.md
 include requirements*.txt
 recursive-include src/stsckm/data *.csv
 recursive-include docs *.rst *.py

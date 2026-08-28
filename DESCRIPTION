@@ -1,12 +1,14 @@
 Package: STSCKM
 Type: Project
-Title: Graph-Regularized Spatio-Temporal Clustering
-Version: 2.0.0
+Title: Graph-Regularized K-Means for Spatio-Temporal and Multi-View Data
+Version: 2.1.0
 Authors@R: person("Muh Akbar", "Idris", role = c("aut", "cre"),
     comment = c(ORCID = "0009-0000-2995-1975"))
-Description: Extensible Python implementation of graph-regularized
-    spatio-temporal clustering, graph diagnostics, parameter search, and
-    reproducible examples. This DESCRIPTION file is included for journal
-    repository metadata; the implementation is Python-based.
+Description: Python implementation of graph-regularized K-means for
+    spatio-temporal and multi-view data, including a domain-general estimator,
+    a spatio-temporal specialization, layered sparse graphs, diagnostics,
+    parameter search, and reproducible cross-domain examples. This DESCRIPTION
+    file is included for journal repository metadata; the implementation is
+    Python-based.
 License: MIT
 Encoding: UTF-8

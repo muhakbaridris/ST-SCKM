@@ -1,8 +1,8 @@
 stsckm documentation
 =====================
 
-``stsckm`` implements spatially constrained spatio-temporal K-means for
-point-event data.
+``stsckm`` implements graph-regularized K-means for general feature matrices,
+multi-view representations, and point-event data.
 
 .. toctree::
    :maxdepth: 2

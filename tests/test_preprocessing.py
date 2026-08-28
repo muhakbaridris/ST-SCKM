@@ -4,6 +4,7 @@ import pytest
 
 from stsckm import (
     add_default_features,
+    add_point_event_features,
     generate_sample_wildfire_data,
     load_sample_wildfire,
     standardize_features,
@@ -49,3 +50,25 @@ def test_generator_and_standardization_validate_inputs():
         standardize_features(frame, [])
     with pytest.raises(KeyError, match="missing requested"):
         standardize_features(frame, ["unknown"])
+
+
+def test_add_point_event_features_supports_generic_columns():
+    frame = pd.DataFrame(
+        {
+            "lon": [-120.0, -119.5],
+            "lat": [35.0, 35.5],
+            "occurred": ["2020-01-01", "2020-01-03"],
+            "magnitude": [3.2, 4.1],
+        }
+    )
+    result = add_point_event_features(
+        frame,
+        longitude_column="lon",
+        latitude_column="lat",
+        time_column="occurred",
+        intensity_column="magnitude",
+    )
+    assert result["time_days"].tolist() == [0.0, 2.0]
+    assert result["event_intensity"].tolist() == [3.2, 4.1]
+    assert result["event_time"].dt.tz is not None
+    assert np.isfinite(result[["x_proj", "y_proj"]]).all().all()

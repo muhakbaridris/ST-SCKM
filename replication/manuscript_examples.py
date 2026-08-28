@@ -163,6 +163,38 @@ def custom_weighted_example():
     return X_spatial, X_temporal, adjacency, model
 
 
+def general_earthquake_example():
+    """Fit the domain-general estimator with two graph layers."""
+    from stsckm import (
+        GraphRegularizedKMeans,
+        add_point_event_features,
+        combine_adjacencies,
+        load_sample_earthquakes,
+    )
+
+    events = add_point_event_features(
+        load_sample_earthquakes(), time_column="time", intensity_column="mag"
+    )
+    spatial, _ = standardize_features(events, ["x_proj", "y_proj"])
+    temporal, _ = standardize_features(events, ["time_days"])
+    features, _ = standardize_features(events, ["mag", "depth", "time_days"])
+    spatial_layer = spatial_graph(spatial, n_neighbors=6, symmetrize="union")
+    temporal_layer = spatial_graph(temporal, n_neighbors=2, symmetrize="union")
+    adjacency = combine_adjacencies(
+        [spatial_layer, temporal_layer],
+        weights=[0.8, 0.2],
+        normalize="max",
+        symmetrize="union",
+    )
+    model = GraphRegularizedKMeans(
+        n_clusters=5,
+        graph_penalty=0.75,
+        feature_weights=[1.0, 0.5, 0.5],
+        random_state=42,
+    ).fit(features, adjacency=adjacency)
+    return events, features, adjacency, model
+
+
 def main():
     """Run every manuscript listing as one smoke test."""
     events, X_spatial, X_temporal, _, _ = prepare_example()
@@ -175,6 +207,7 @@ def main():
     fitted_summary = fitted_summary_example(events, model)
     transformed = transform_example(X_spatial, X_temporal, model)
     _, _, _, weighted_model = custom_weighted_example()
+    _, _, _, earthquake_model = general_earthquake_example()
 
     print("Internal metrics:", internal)
     print("Graph diagnostics:", graph)
@@ -185,6 +218,7 @@ def main():
     print(fitted_summary.to_string(index=False))
     print(transformed.to_string(index=False))
     print("Custom weighted labels:", weighted_model.labels_)
+    print("Earthquake graph diagnostics:", earthquake_model.graph_diagnostics_)
 
 
 if __name__ == "__main__":

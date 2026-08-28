@@ -1,6 +1,13 @@
 import numpy as np
 
-from stsckm import STSCKM, fit_stability, parameter_search
+from stsckm import (
+    STSCKM,
+    GraphRegularizedKMeans,
+    fit_stability,
+    graph_fit_stability,
+    graph_parameter_search,
+    parameter_search,
+)
 
 
 def sample_data():
@@ -46,3 +53,28 @@ def test_fit_stability_requires_two_seeds():
         assert "two seeds" in str(error)
     else:
         raise AssertionError("fit_stability should reject one seed")
+
+
+def test_graph_parameter_search_supports_general_estimator():
+    spatial, temporal = sample_data()
+    X = np.column_stack([spatial, temporal])
+    result = graph_parameter_search(
+        X,
+        {"graph_penalty": [0.0, 0.5], "n_neighbors": [1]},
+        estimator=GraphRegularizedKMeans(n_clusters=2, random_state=0),
+        graph_features=spatial,
+    )
+    assert len(result) == 2
+    assert {"silhouette", "edge_disagreement", "objective"}.issubset(result.columns)
+
+
+def test_graph_fit_stability_supports_general_estimator():
+    spatial, temporal = sample_data()
+    X = np.column_stack([spatial, temporal])
+    result = graph_fit_stability(
+        GraphRegularizedKMeans(n_clusters=2, graph_penalty=0),
+        X,
+        graph_features=spatial,
+        seeds=(1, 2, 3),
+    )
+    assert result.mean_adjusted_rand == 1.0

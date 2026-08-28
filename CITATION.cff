@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "stsckm: An Extensible Python Framework for Graph-Regularized Spatio-Temporal Clustering"
+title: "stsckm: Graph-Regularized K-Means for Spatio-Temporal and Multi-View Data"
 message: "If you use this software, cite the software and associated article."
 type: software
 authors:
@@ -10,13 +10,15 @@ authors:
     affiliation: IPB University
 repository-code: "https://github.com/muhakbaridris/ST-SCKM"
 license: MIT
-version: 2.0.0
-date-released: 2026-08-25
+version: 2.1.0
+date-released: 2026-08-29
 keywords:
   - spatial clustering
   - spatio-temporal clustering
   - graph penalty
   - geospatial data
+  - graph clustering
+  - multi-view data
 preferred-citation:
   type: article
   title: "Performance Evaluation of ST-DBSCAN and Spatio-Temporal Spatially Constrained K-Means (ST-SCKM) for Wildfire Risk Zoning and Resilience Analysis"
