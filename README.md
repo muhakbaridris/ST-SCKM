@@ -1,7 +1,7 @@
 # stsckm
 
 [![Continuous integration](https://github.com/muhakbaridris/ST-SCKM/actions/workflows/ci.yml/badge.svg)](https://github.com/muhakbaridris/ST-SCKM/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/stsckm.svg)](https://pypi.org/project/stsckm/)
+[![PyPI version](https://img.shields.io/pypi/v/stsckm.svg?v=2.1.0)](https://pypi.org/project/stsckm/)
 [![Python versions](https://img.shields.io/pypi/pyversions/stsckm.svg)](https://pypi.org/project/stsckm/)
 
 `stsckm` is a Python framework for graph-regularized K-means clustering. It
